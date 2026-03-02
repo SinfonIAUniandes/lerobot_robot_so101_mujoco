@@ -210,4 +210,4 @@ __marimo__/
 *.sh
 
 .python-version
-#*.egg-info/
+*.egg-info/
