@@ -1,3 +1,4 @@
+import os
 import threading
 import numpy as np
 from typing import Any
@@ -22,9 +23,12 @@ class So101MujocoRobot(Robot):
         self._target_action = {}
         self._sim_thread = None
 
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        resolved_xml_path = os.path.join(current_dir, "robotstudio_so101", "so101_camera_mount.xml")
+
         # Instantiate the simulation but DO NOT run it yet
         self.sim = SO101Simulation(
-            xml_path=self.config.xml_path,
+            xml_path=resolved_xml_path,
             urdf_name=self.config.urdf_name,
             enable_rgb=True,
             show_cv2=False, # Let LeRobot handle any visualizations
@@ -78,6 +82,19 @@ class So101MujocoRobot(Robot):
     @property
     def is_connected(self) -> bool:
         return self._is_connected
+    
+    @property
+    def is_calibrated(self) -> bool:
+        # Simulations start perfectly aligned
+        return True
+
+    def calibrate(self) -> None:
+        # No physical offsets to calculate
+        pass
+
+    def configure(self) -> None:
+        # No hardware PID or torque settings to initialize
+        pass
 
     def connect(self, calibrate: bool = True) -> None:
         # Start the simulation in a background thread to prevent blocking
