@@ -23,6 +23,8 @@ class So101MujocoRobot(Robot):
         self._target_action = {}
         self._sim_thread = None
 
+        self.cameras = {"camera": None}
+
         current_dir = os.path.dirname(os.path.abspath(__file__))
         resolved_xml_path = os.path.join(current_dir, "robotstudio_so101", "so101_camera_mount.xml")
 
