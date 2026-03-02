@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobot_robot_so101_mujoco"
+version = "0.1.0"
+description = "MuJoCo simulation environment for the SO101 robot arm"
+# Notice: dependencies are entirely removed so pip doesn't mess with your environment
