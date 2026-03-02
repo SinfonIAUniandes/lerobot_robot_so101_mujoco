@@ -1,7 +1,3 @@
-### 1. README for the MuJoCo Robot Plugin
-
-**Save this as:** `lerobot_robot_so101_mujoco/README.md`
-
 # SO101 MuJoCo Simulation for LeRobot
 
 A custom hardware plugin for the [LeRobot](https://github.com/huggingface/lerobot) framework that wraps a MuJoCo simulation of the SO101 robotic arm. 
