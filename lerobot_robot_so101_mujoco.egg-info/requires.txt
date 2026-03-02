@@ -1,4 +1,0 @@
-lerobot
-mujoco
-numpy
-opencv-python

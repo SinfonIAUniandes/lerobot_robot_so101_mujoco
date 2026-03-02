@@ -4,7 +4,7 @@ from typing import Any
 from lerobot.robots.robot import Robot
 
 # Import your existing simulation class
-from so101_sim import SO101Simulation 
+from .so101_sim import SO101Simulation
 from .config_so101_mujoco_robot import So101MujocoRobotConfig
 
 class So101MujocoRobot(Robot):

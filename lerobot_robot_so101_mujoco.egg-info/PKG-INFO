@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: lerobot_robot_so101_mujoco
-Version: 0.1.0
-Summary: MuJoCo simulation environment for the SO101 robot arm
-Requires-Dist: lerobot
-Requires-Dist: mujoco
-Requires-Dist: numpy
-Requires-Dist: opencv-python
