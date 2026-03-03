@@ -24,6 +24,10 @@ class So101MujocoRobot(Robot):
         self._target_action = {}
         self._sim_thread = None
 
+        # The teleop script is applying a 50.0x scale for the physical hardware.
+        # We divide by 50.0 here to give the MuJoCo engine the pure radians it needs.
+        self.scale = 50.0  # Scale factor for the robot arm joint angles
+
         self.cameras = {"camera": None}
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -69,17 +73,16 @@ class So101MujocoRobot(Robot):
             "gripper.pos": float, 
             "camera": (480, 640, 3) 
         }
-
     @property
     def action_features(self) -> dict:
-        # Define the commands your robot expects via send_action()
+        # Pretend to be the physical robot by expecting .pos keys
         return {
-            "shoulder_pan": float,
-            "shoulder_lift": float,
-            "elbow_flex": float,
-            "wrist_flex": float,
-            "wrist_roll": float,
-            "gripper": float,
+            "shoulder_pan.pos": float,
+            "shoulder_lift.pos": float,
+            "elbow_flex.pos": float,
+            "wrist_flex.pos": float,
+            "wrist_roll.pos": float,
+            "gripper.pos": float,
         }
 
     @property
@@ -101,12 +104,14 @@ class So101MujocoRobot(Robot):
 
     def connect(self, calibrate: bool = True) -> None:
         # Pass headless=True using a lambda to avoid the GLFW/Wayland crash
-        self._sim_thread = threading.Thread(target=lambda: self.sim.run(headless=True), daemon=True)
+        self._sim_thread = threading.Thread(target=lambda: self.sim.run(headless=False), daemon=True)
         self._sim_thread.start()
         self._is_connected = True
 
+        # Strip .pos so the simulator finds the correct XML actuator names
         for key in self.action_features.keys():
-            self._target_action[key] = 0.0
+            sim_key = key.replace(".pos", "")
+            self._target_action[sim_key] = 0.0
             
         print("Waiting for MuJoCo to render the first frame...")
         while "camera" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
@@ -128,7 +133,12 @@ class So101MujocoRobot(Robot):
         return self._latest_obs.copy()
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
-        # Update the target action dictionary for the sim thread to pick up
+        
         for key, val in action.items():
-            self._target_action[key] = val
+            if key.endswith(".pos"):
+                sim_key = key.replace(".pos", "")
+                self._target_action[sim_key] = val / self.scale  # Scale down to get radians for the sim
+            else:
+                self._target_action[key] = val
+                
         return action
