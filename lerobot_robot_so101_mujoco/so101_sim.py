@@ -16,7 +16,7 @@ except ImportError:
 try:
     import pyroki as pk
     from robot_descriptions.loaders.yourdfpy import load_robot_description as load_urdf_description
-    import pyroki_snippets as pks
+    from . import pyroki_snippets as pks
     import viser
     from viser.extras import ViserUrdf
     PYROKI_AVAILABLE = True
@@ -122,9 +122,7 @@ class SO101Simulation:
 
         # Setup Renderer
         self.width, self.height = 640, 480
-        if self.enable_rgb or self.enable_depth:
-            self.renderer = mujoco.Renderer(
-                self.model, height=self.height, width=self.width)
+        self.renderer = None
 
         # Pre-calculate point cloud grid for efficiency
         if self.rerun_depth_mode == "pointcloud":
@@ -457,6 +455,10 @@ class SO101Simulation:
                     self.data.ctrl[m_idx] = q_sol[u_idx]
 
     def _process_cameras(self):
+        # --- THE FIX: Initialize the renderer inside the background thread ---
+        if self.renderer is None and (self.enable_rgb or self.enable_depth):
+            self.renderer = mujoco.Renderer(
+                self.model, height=self.height, width=self.width)
         rgb_image = None
         bgr_image = None
         raw_depth = None
@@ -502,52 +504,66 @@ class SO101Simulation:
                 cv2.imshow("Depth Camera", depth_colormap)
             cv2.waitKey(1)
 
-    def run(self):
+    def run(self, headless=False):
         sim_start_time = time.time()
         render_interval = 1.0 / self.render_fps
         last_render_time = time.time()
+        self.is_running = True # Allows us to cleanly kill the thread later
 
-        with mujoco.viewer.launch_passive(self.model, self.data) as viewer:
-            while viewer.is_running():
+        # Only launch the GLFW viewer if we are not headless
+        viewer = mujoco.viewer.launch_passive(self.model, self.data) if not headless else None
+
+        try:
+            while self.is_running:
+                if viewer and not viewer.is_running():
+                    break
+                
                 real_elapsed_time = time.time() - sim_start_time
 
                 while self.data.time < real_elapsed_time:
-                    # --- NEW: Get and apply commands before stepping ---
+                    # --- Get and apply commands before stepping ---
                     if self.control_callback:
                         commands = self.control_callback(self.data.time)
                         if isinstance(commands, dict):
                             self.apply_commands(commands)
-                    # --- NEW: IK Coordinate Control ---
+                    
+                    # --- IK Coordinate Control ---
                     if PYROKI_AVAILABLE:
                         ik_command = None
-                        
-                        # Prioritize Web view if enabled
                         if self.use_ik_web:
                             ik_command = {
                                 "pos": np.array(self.ik_web_target.position),
                                 "quat": np.array(self.ik_web_target.wxyz),
-                                "gripper": 0.0 # Gripper logic handled separately or keep default
+                                "gripper": 0.0 
                             }
                         elif self.ik_callback:
                             ik_command = self.ik_callback(self.data.time)
                             
                         if isinstance(ik_command, dict):
                             self.apply_ik(ik_command)
-                    # ---------------------------------------------------
+                    
                     mujoco.mj_step(self.model, self.data)
                     self._snap_camera()
                     mujoco.mj_forward(self.model, self.data)
 
-                viewer.sync()
+                if viewer:
+                    viewer.sync()
+                else:
+                    # PREVENTS DEADLOCK: Yields the thread so LeRobot can read terminal keys
+                    time.sleep(0.001) 
 
                 current_time = time.time()
-                # Run visual and joint processing synced at the render_fps rate
                 if current_time - last_render_time >= render_interval:
                     if self.enable_rgb or self.enable_depth:
                         self._process_cameras()
 
-                    self._process_joints()  # <--- Added joint processing hook
+                    self._process_joints() 
                     last_render_time = current_time
+        finally:
+            if viewer:
+                viewer.close()
+            if self.show_cv2:
+                cv2.destroyAllWindows()
 
         if self.show_cv2:
             cv2.destroyAllWindows()

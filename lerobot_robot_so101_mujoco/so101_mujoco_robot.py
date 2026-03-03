@@ -3,6 +3,7 @@ import threading
 import numpy as np
 from typing import Any
 from lerobot.robots.robot import Robot
+import time
 
 # Import your existing simulation class
 from .so101_sim import SO101Simulation
@@ -99,18 +100,26 @@ class So101MujocoRobot(Robot):
         pass
 
     def connect(self, calibrate: bool = True) -> None:
-        # Start the simulation in a background thread to prevent blocking
-        self._sim_thread = threading.Thread(target=self.sim.run, daemon=True)
+        # Pass headless=True using a lambda to avoid the GLFW/Wayland crash
+        self._sim_thread = threading.Thread(target=lambda: self.sim.run(headless=True), daemon=True)
         self._sim_thread.start()
         self._is_connected = True
 
-        # Pre-fill target actions with 0.0
         for key in self.action_features.keys():
             self._target_action[key] = 0.0
+            
+        print("Waiting for MuJoCo to render the first frame...")
+        while "camera" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
+            time.sleep(0.05)
+        print("MuJoCo is ready!")
+
+        self._is_connected = True
 
     def disconnect(self) -> None:
-        # Gracefully terminate communication
+        # Gracefully terminate the simulation loop
         self._is_connected = False
+        if hasattr(self, 'sim'):
+            self.sim.is_running = False
 
     def get_observation(self) -> dict[str, Any]:
         # Return a dictionary of sensor values from the robot
