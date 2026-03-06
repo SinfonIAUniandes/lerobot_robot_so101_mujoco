@@ -1,6 +1,5 @@
 mujoco
 pyglet<2
-git+https://github.com/chungmin99/pyroki.git
 numpy
 open3d
 rerun-sdk

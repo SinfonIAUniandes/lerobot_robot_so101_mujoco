@@ -5,12 +5,10 @@ from typing import Any
 from lerobot.robots.robot import Robot
 import time
 
-# Import your existing simulation class
 from .so101_sim import SO101Simulation
 from .config_so101_mujoco_robot import So101MujocoRobotConfig
 
 class So101MujocoRobot(Robot):
-    # The device class name must match the config class name without the Config suffix
     config_class = So101MujocoRobotConfig
     name = "so101_mujoco"
 
@@ -19,96 +17,75 @@ class So101MujocoRobot(Robot):
         self.config = config
         self._is_connected = False
         
-        # Thread-safe storage for observations and target actions
         self._latest_obs = {}
         self._target_action = {}
         self._sim_thread = None
-
-        # The teleop script is applying a 50.0x scale for the physical hardware.
-        # We divide by 50.0 here to give the MuJoCo engine the pure radians it needs.
-        self.scale = 50.0  # Scale factor for the robot arm joint angles
+        self.scale = 50.0  
 
         self.cameras = {"camera": None}
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        resolved_xml_path = os.path.join(current_dir, "robotstudio_so101", "so101_camera_mount.xml")
+        resolved_xml_path = os.path.join(current_dir, self.config.xml_path)
 
-        # Instantiate the simulation but DO NOT run it yet
+        # Instantiate the simulation with the new config parameters
         self.sim = SO101Simulation(
             xml_path=resolved_xml_path,
-            urdf_name=self.config.urdf_name,
-            enable_rgb=True,
-            show_cv2=False, # Let LeRobot handle any visualizations
+            camera_name=self.config.camera_name,
+            render_fps=self.config.render_fps,
+            enable_rgb=self.config.enable_rgb,
+            enable_depth=self.config.enable_depth,
+            show_cv2=self.config.show_cv2,
+            enable_rerun=self.config.enable_rerun,
+            rerun_log_meshes=self.config.rerun_log_meshes,
+            rerun_log_tf=self.config.rerun_log_tf,
+            rerun_depth_mode=self.config.rerun_depth_mode,
+            rerun_log_rgb=self.config.rerun_log_rgb,
             rgb_callback=self._on_rgb_frame,
             joint_callback=self._on_joint_data,
             control_callback=self._on_control_request
         )
 
-    # --- Callbacks for the background thread ---
     def _on_rgb_frame(self, bgr_image):
         import cv2
-        # Convert the BGR image from the sim to RGB for LeRobot
         rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
         self._latest_obs["camera"] = rgb_image
 
     def _on_joint_data(self, joint_data):
-        # Flatten joint data into the format LeRobot expects
         for joint_name, pos in joint_data.items():
             self._latest_obs[f"{joint_name}.pos"] = pos
 
     def _on_control_request(self, sim_time):
-        # The simulation thread calls this to get the latest commanded action
         return self._target_action
 
-    # --- LeRobot Interface Implementation ---
     @property
     def observation_features(self) -> dict:
-        # Define the structure of sensor outputs
         return {
-            "shoulder_pan.pos": float,
-            "shoulder_lift.pos": float,
-            "elbow_flex.pos": float,
-            "wrist_flex.pos": float,
-            "wrist_roll.pos": float,
-            "gripper.pos": float, 
+            "shoulder_pan.pos": float, "shoulder_lift.pos": float,
+            "elbow_flex.pos": float, "wrist_flex.pos": float,
+            "wrist_roll.pos": float, "gripper.pos": float, 
             "camera": (480, 640, 3) 
         }
+        
     @property
     def action_features(self) -> dict:
-        # Pretend to be the physical robot by expecting .pos keys
         return {
-            "shoulder_pan.pos": float,
-            "shoulder_lift.pos": float,
-            "elbow_flex.pos": float,
-            "wrist_flex.pos": float,
-            "wrist_roll.pos": float,
-            "gripper.pos": float,
+            "shoulder_pan.pos": float, "shoulder_lift.pos": float,
+            "elbow_flex.pos": float, "wrist_flex.pos": float,
+            "wrist_roll.pos": float, "gripper.pos": float,
         }
 
     @property
-    def is_connected(self) -> bool:
-        return self._is_connected
-    
+    def is_connected(self) -> bool: return self._is_connected
     @property
-    def is_calibrated(self) -> bool:
-        # Simulations start perfectly aligned
-        return True
-
-    def calibrate(self) -> None:
-        # No physical offsets to calculate
-        pass
-
-    def configure(self) -> None:
-        # No hardware PID or torque settings to initialize
-        pass
+    def is_calibrated(self) -> bool: return True
+    def calibrate(self) -> None: pass
+    def configure(self) -> None: pass
 
     def connect(self, calibrate: bool = True) -> None:
-        # Pass headless=True using a lambda to avoid the GLFW/Wayland crash
         self._sim_thread = threading.Thread(target=lambda: self.sim.run(headless=False), daemon=True)
         self._sim_thread.start()
         self._is_connected = True
 
-        # Strip .pos so the simulator finds the correct XML actuator names
         for key in self.action_features.keys():
             sim_key = key.replace(".pos", "")
             self._target_action[sim_key] = 0.0
@@ -121,24 +98,20 @@ class So101MujocoRobot(Robot):
         self._is_connected = True
 
     def disconnect(self) -> None:
-        # Gracefully terminate the simulation loop
         self._is_connected = False
         if hasattr(self, 'sim'):
             self.sim.is_running = False
 
     def get_observation(self) -> dict[str, Any]:
-        # Return a dictionary of sensor values from the robot
         if not self.is_connected:
             raise ConnectionError(f"{self} is not connected.")
         return self._latest_obs.copy()
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
-        
         for key, val in action.items():
             if key.endswith(".pos"):
                 sim_key = key.replace(".pos", "")
-                self._target_action[sim_key] = val / self.scale  # Scale down to get radians for the sim
+                self._target_action[sim_key] = val / self.scale 
             else:
                 self._target_action[key] = val
-                
         return action
