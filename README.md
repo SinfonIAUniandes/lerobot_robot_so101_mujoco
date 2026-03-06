@@ -10,7 +10,7 @@ This package allows you to use a simulated environment exactly as if it were phy
 
 **1. Clone the repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/SinfonIAUniandes/lerobot_robot_so101_mujoco
 cd lerobot_robot_so101_mujoco
 
 ```
