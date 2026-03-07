@@ -30,9 +30,17 @@ class SO101Simulation:
         rerun_log_meshes: bool = True,
         rerun_log_tf: bool = True,
         rerun_depth_mode: str = "none",  # "none", "depth", "pointcloud"
-        rerun_log_rgb: bool = True,     
+        rerun_log_rgb: bool = True,
+        scene_config=None
     ):
         self.model = mujoco.MjModel.from_xml_path(xml_path)
+        self.scene_config = scene_config
+
+        # Always run setup so we use the config's base values
+        if self.scene_config:
+            self._setup_scene()
+            
+        
         self.data = mujoco.MjData(self.model)
 
         self.camera_name = camera_name
@@ -84,6 +92,49 @@ class SO101Simulation:
 
         if self.enable_rerun:
             self._init_rerun()
+
+    def _setup_scene(self):
+        is_rand = getattr(self.scene_config, 'randomize_scene', False)
+
+        def get_val(base, delta):
+            base_arr = np.array(base, dtype=np.float32)
+            if not is_rand:
+                return base_arr
+            delta_arr = np.array(delta, dtype=np.float32)
+            # Generate random noise between -delta and +delta
+            noise = np.random.uniform(-delta_arr, delta_arr)
+            return base_arr + noise
+
+        # 1. Setup Box
+        box_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "box")
+        box_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "box_geom")
+        if box_body_id != -1:
+            self.model.body_pos[box_body_id] = get_val(self.scene_config.box_pos_base, self.scene_config.box_pos_delta)
+        if box_geom_id != -1:
+            self.model.geom_size[box_geom_id] = get_val(self.scene_config.box_size_base, self.scene_config.box_size_delta)
+            # Clip colors to ensure they stay between 0.0 and 1.0
+            self.model.geom_rgba[box_geom_id] = np.clip(get_val(self.scene_config.box_color_base, self.scene_config.box_color_delta), 0.0, 1.0)
+
+        # 2. Setup Tray
+        tray_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "tray")
+        tray_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "tray_geom")
+        if tray_body_id != -1:
+            self.model.body_pos[tray_body_id] = get_val(self.scene_config.tray_pos_base, self.scene_config.tray_pos_delta)
+        if tray_geom_id != -1:
+            self.model.geom_size[tray_geom_id] = get_val(self.scene_config.tray_size_base, self.scene_config.tray_size_delta)
+            self.model.geom_rgba[tray_geom_id] = np.clip(get_val(self.scene_config.tray_color_base, self.scene_config.tray_color_delta), 0.0, 1.0)
+
+        # 3. Setup Camera
+        cam_mount_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "air_camera_mount")
+        if cam_mount_id != -1:
+            self.model.body_pos[cam_mount_id] = get_val(self.scene_config.camera_pos_base, self.scene_config.camera_pos_delta)
+            
+            # Apply orientation via euler (convert to quat and set body_quat)
+            if hasattr(self.scene_config, "camera_euler_base") and hasattr(self.scene_config, "camera_euler_delta"):
+                euler_target = get_val(self.scene_config.camera_euler_base, self.scene_config.camera_euler_delta)
+                quat_target = np.zeros(4)
+                mujoco.mju_euler2Quat(quat_target, euler_target, "xyz")
+                self.model.body_quat[cam_mount_id] = quat_target
 
     def _snap_camera(self):
         self.model.body_pos[self.cam_id] = self.model.body_pos[self.mount_id]

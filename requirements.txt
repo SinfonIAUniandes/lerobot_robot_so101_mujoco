@@ -1,7 +1,7 @@
 mujoco
 pyglet<2
 numpy
-open3d
 rerun-sdk
 lerobot[smolvla]
 opencv-python
+open3d

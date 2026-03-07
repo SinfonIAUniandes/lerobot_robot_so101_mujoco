@@ -42,7 +42,8 @@ class So101MujocoRobot(Robot):
             rerun_log_rgb=self.config.rerun_log_rgb,
             rgb_callback=self._on_rgb_frame,
             joint_callback=self._on_joint_data,
-            control_callback=self._on_control_request
+            control_callback=self._on_control_request,
+            scene_config=self.config
         )
 
     def _on_rgb_frame(self, bgr_image):

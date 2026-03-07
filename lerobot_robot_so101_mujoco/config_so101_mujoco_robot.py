@@ -20,3 +20,28 @@ class So101MujocoRobotConfig(RobotConfig):
     rerun_log_tf: bool = True
     rerun_depth_mode: str = "none"  # "none", "depth", or "pointcloud"
     rerun_log_rgb: bool = True
+    
+    # Scene randomization parameters
+    randomize_scene: bool = True
+    
+    # Black Box (Base values + allowed variance)
+    box_pos_base: tuple = (0.35, 0.0, 0.03)
+    box_pos_delta: tuple = (0.05, 0.10, 0.0) # Varies X by ±0.05, Y by ±0.10
+    box_size_base: tuple = (0.02, 0.02, 0.03)
+    box_size_delta: tuple = (0.005, 0.005, 0.005)
+    box_color_base: tuple = (0.1, 0.1, 0.1, 1.0) # Base black (r,g,b,alpha)
+    box_color_delta: tuple = (0.1, 0.1, 0.1, 0.0) # Can drift slightly lighter
+    
+    # Red Tray
+    tray_pos_base: tuple = (0.35, 0.2, 0.01)
+    tray_pos_delta: tuple = (0.10, 0.05, 0.0)
+    tray_size_base: tuple = (0.08, 0.08, 0.01)
+    tray_size_delta: tuple = (0.02, 0.02, 0.0)
+    tray_color_base: tuple = (0.8, 0.1, 0.1, 1.0) # Base red
+    tray_color_delta: tuple = (0.2, 0.1, 0.1, 0.0) # Can drift slightly in hue/brightness
+    
+    # Camera Mount
+    camera_pos_base: tuple = (0.2, -0.4, 0.5)
+    camera_pos_delta: tuple = (0.0, 0.0, 0.0)
+    camera_euler_base: tuple = (0.785398, 3.14159, 0.0) # Base orientation (45° down, facing forward)
+    camera_euler_delta: tuple = (0.0, 0.0, 0.0)

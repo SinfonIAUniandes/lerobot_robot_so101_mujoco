@@ -22,10 +22,16 @@
   <worldbody>
     <light pos="0 0 3.5" dir="0 0 -1" directional="true" />
     <geom name="floor" size="0 0 0.05" pos="0 0 0" type="plane" material="groundplane" />
+
     <body name="box" pos="0.35 0 0.03">
       <freejoint />
-      <geom type="box" name="box" size="0.02 0.02 0.03" condim="3"
-        friction="1 .03 .003" rgba="0 1 0 1" contype="2" conaffinity="1" solref="0.01 1" />
+      <geom type="box" name="box_geom" size="0.02 0.02 0.03" condim="3"
+        friction="1 .03 .003" rgba="0.1 0.1 0.1 1" contype="2" conaffinity="1" solref="0.01 1" />
+    </body>
+
+    <body name="tray" pos="0.35 0.2 0.01">
+      <geom type="box" name="tray_geom" size="0.08 0.08 0.01" condim="3"
+        rgba="0.8 0.1 0.1 1" contype="1" conaffinity="2" />
     </body>
 
     <body name="air_camera_mount" pos="0.2 -0.4 0.5" euler="0.785398 3.14159 0">
