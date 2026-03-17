@@ -8,6 +8,8 @@ import time
 from .so101_sim import SO101Simulation
 from .config_so101_mujoco_robot import So101MujocoRobotConfig
 
+import mujoco
+
 class So101MujocoRobot(Robot):
     config_class = So101MujocoRobotConfig
     name = "so101_mujoco"
@@ -55,6 +57,28 @@ class So101MujocoRobot(Robot):
         for joint_name, pos in joint_data.items():
             self._latest_obs[f"{joint_name}.pos"] = pos
 
+        # --- NEW: Proprioceptive Force Calculation ---
+        try:
+            ee_id = mujoco.mj_name2id(self.sim.model, mujoco.mjtObj.mjOBJ_BODY, "gripper")
+            if ee_id != -1:
+                # 1. Get the 3D Translation Jacobian for the gripper
+                # nv is the number of degrees of freedom in the MuJoCo model
+                jacp = np.zeros((3, self.sim.model.nv))
+                mujoco.mj_jacBody(self.sim.model, self.sim.data, jacp, None, ee_id)
+
+                # 2. Get the actual torque effort from the motors
+                # qfrc_actuator contains the torques currently applied by your PD controllers
+                tau = self.sim.data.qfrc_actuator.copy()
+
+                # 3. Calculate Cartesian Force: F = (J^T)^+ * tau
+                # We use pseudo-inverse (pinv) so the math doesn't explode if the arm fully extends (singularity)
+                J_trans_pinv = np.linalg.pinv(jacp.T)
+                cartesian_force = J_trans_pinv @ tau
+
+                self._latest_obs["motor_force"] = cartesian_force
+        except Exception as e:
+            pass
+
     def _on_control_request(self, sim_time):
         return self._target_action
 
@@ -64,7 +88,8 @@ class So101MujocoRobot(Robot):
             "shoulder_pan.pos": float, "shoulder_lift.pos": float,
             "elbow_flex.pos": float, "wrist_flex.pos": float,
             "wrist_roll.pos": float, "gripper.pos": float, 
-            "camera": (480, 640, 3) 
+            "camera": (480, 640, 3),
+            "motor_force": (3,)
         }
         
     @property
