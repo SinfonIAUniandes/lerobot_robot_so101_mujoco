@@ -1,14 +1,11 @@
 import os
 import threading
-import numpy as np
 from typing import Any
 from lerobot.robots.robot import Robot
 import time
 
 from .so101_sim import SO101Simulation
 from .config_so101_mujoco_robot import So101MujocoRobotConfig
-
-import mujoco
 
 
 class So101MujocoRobot(Robot):
@@ -52,10 +49,7 @@ class So101MujocoRobot(Robot):
     def _on_rgb_frame(self, bgr_image):
         import cv2
         rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-        # Convert HWC (480, 640, 3) to CHW (3, 480, 640) for LeRobot
-        chw_image = np.transpose(rgb_image, (2, 0, 1))
-        
-        self._latest_obs["observation.images.realsense"] = chw_image
+        self._latest_obs["realsense"] = rgb_image
 
     def _on_joint_data(self, joint_data):
         for joint_name, pos in joint_data.items():
@@ -70,11 +64,7 @@ class So101MujocoRobot(Robot):
             "shoulder_pan.pos": float, "shoulder_lift.pos": float,
             "elbow_flex.pos": float, "wrist_flex.pos": float,
             "wrist_roll.pos": float, "gripper.pos": float,
-            "observation.images.realsense": {
-                "dtype": "video",
-                "shape": (3, 480, 640),
-                "names": ["c", "h", "w"]
-            },
+            "realsense": (480, 640, 3),
         }
 
     @property
@@ -103,7 +93,7 @@ class So101MujocoRobot(Robot):
             self._target_action[sim_key] = 0.0
 
         print("Waiting for MuJoCo to render the first frame...")
-        while "observation.images.realsense" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
+        while "realsense" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
             time.sleep(0.05)
         print("MuJoCo is ready!")
 
