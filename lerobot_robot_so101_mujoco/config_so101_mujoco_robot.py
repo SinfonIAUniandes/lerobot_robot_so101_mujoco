@@ -22,7 +22,7 @@ class So101MujocoRobotConfig(RobotConfig):
     rerun_log_rgb: bool = True
     
     # Scene randomization parameters
-    randomize_scene: bool = True
+    randomize_scene: bool = False
     
     # Black Box (Base values + allowed variance)
     box_pos_base: tuple = (0.35, 0.0, 0.03)

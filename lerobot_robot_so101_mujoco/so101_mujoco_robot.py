@@ -10,6 +10,7 @@ from .config_so101_mujoco_robot import So101MujocoRobotConfig
 
 import mujoco
 
+
 class So101MujocoRobot(Robot):
     config_class = So101MujocoRobotConfig
     name = "so101_mujoco"
@@ -18,13 +19,13 @@ class So101MujocoRobot(Robot):
         super().__init__(config)
         self.config = config
         self._is_connected = False
-        
+
         self._latest_obs = {}
         self._target_action = {}
         self._sim_thread = None
-        self.scale = 50.0  
+        self.scale = 50.0
 
-        self.cameras = {"camera": None}
+        self.cameras = {"realsense": None}
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         resolved_xml_path = os.path.join(current_dir, self.config.xml_path)
@@ -51,33 +52,14 @@ class So101MujocoRobot(Robot):
     def _on_rgb_frame(self, bgr_image):
         import cv2
         rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-        self._latest_obs["camera"] = rgb_image
+        # Convert HWC (480, 640, 3) to CHW (3, 480, 640) for LeRobot
+        chw_image = np.transpose(rgb_image, (2, 0, 1))
+        
+        self._latest_obs["observation.images.realsense"] = chw_image
 
     def _on_joint_data(self, joint_data):
         for joint_name, pos in joint_data.items():
             self._latest_obs[f"{joint_name}.pos"] = pos
-
-        # --- NEW: Proprioceptive Force Calculation ---
-        try:
-            ee_id = mujoco.mj_name2id(self.sim.model, mujoco.mjtObj.mjOBJ_BODY, "gripper")
-            if ee_id != -1:
-                # 1. Get the 3D Translation Jacobian for the gripper
-                # nv is the number of degrees of freedom in the MuJoCo model
-                jacp = np.zeros((3, self.sim.model.nv))
-                mujoco.mj_jacBody(self.sim.model, self.sim.data, jacp, None, ee_id)
-
-                # 2. Get the actual torque effort from the motors
-                # qfrc_actuator contains the torques currently applied by your PD controllers
-                tau = self.sim.data.qfrc_actuator.copy()
-
-                # 3. Calculate Cartesian Force: F = (J^T)^+ * tau
-                # We use pseudo-inverse (pinv) so the math doesn't explode if the arm fully extends (singularity)
-                J_trans_pinv = np.linalg.pinv(jacp.T)
-                cartesian_force = J_trans_pinv @ tau
-
-                self._latest_obs["motor_force"] = cartesian_force
-        except Exception as e:
-            pass
 
     def _on_control_request(self, sim_time):
         return self._target_action
@@ -87,11 +69,14 @@ class So101MujocoRobot(Robot):
         return {
             "shoulder_pan.pos": float, "shoulder_lift.pos": float,
             "elbow_flex.pos": float, "wrist_flex.pos": float,
-            "wrist_roll.pos": float, "gripper.pos": float, 
-            "camera": (480, 640, 3),
-            "motor_force": (3,)
+            "wrist_roll.pos": float, "gripper.pos": float,
+            "observation.images.realsense": {
+                "dtype": "video",
+                "shape": (3, 480, 640),
+                "names": ["c", "h", "w"]
+            },
         }
-        
+
     @property
     def action_features(self) -> dict:
         return {
@@ -108,16 +93,17 @@ class So101MujocoRobot(Robot):
     def configure(self) -> None: pass
 
     def connect(self, calibrate: bool = True) -> None:
-        self._sim_thread = threading.Thread(target=lambda: self.sim.run(headless=False), daemon=True)
+        self._sim_thread = threading.Thread(
+            target=lambda: self.sim.run(headless=False), daemon=True)
         self._sim_thread.start()
         self._is_connected = True
 
         for key in self.action_features.keys():
             sim_key = key.replace(".pos", "")
             self._target_action[sim_key] = 0.0
-            
+
         print("Waiting for MuJoCo to render the first frame...")
-        while "camera" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
+        while "observation.images.realsense" not in self._latest_obs or "gripper.pos" not in self._latest_obs:
             time.sleep(0.05)
         print("MuJoCo is ready!")
 
@@ -137,7 +123,7 @@ class So101MujocoRobot(Robot):
         for key, val in action.items():
             if key.endswith(".pos"):
                 sim_key = key.replace(".pos", "")
-                self._target_action[sim_key] = val / self.scale 
+                self._target_action[sim_key] = val / self.scale
             else:
                 self._target_action[key] = val
         return action

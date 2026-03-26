@@ -74,3 +74,43 @@ lerobot-record \
   --dataset.fps=30
 
 ```
+
+
+**Example: override all configuration parameters from the CLI**
+
+You can override any configuration parameter by passing `--robot.<parameter_name>=<value>` to the LeRobot command. Below is an example that shows how to modify all parameters defined in the `So101MujocoRobotConfig` in a single command (use `\` to split the line for readability in bash):
+
+```bash
+lerobot-teleoperate \
+  --robot.type=so101_mujoco \
+  --robot.xml_path="./custom_scene/so101_custom.xml" \
+  --robot.camera_name="my_camera" \
+  --robot.render_fps=15 \
+  --robot.enable_rgb=false \
+  --robot.enable_depth=true \
+  --robot.show_cv2=true \
+  --robot.enable_rerun=true \
+  --robot.rerun_log_meshes=false \
+  --robot.rerun_log_tf=false \
+  --robot.rerun_depth_mode=pointcloud \
+  --robot.rerun_log_rgb=false \
+  --robot.randomize_scene=false \
+  --robot.box_pos_base="(0.40, 0.05, 0.02)" \
+  --robot.box_pos_delta="(0.02, 0.02, 0.00)" \
+  --robot.box_size_base="(0.03, 0.03, 0.04)" \
+  --robot.box_size_delta="(0.005, 0.005, 0.005)" \
+  --robot.box_color_base="(0.2, 0.2, 0.2, 1.0)" \
+  --robot.box_color_delta="(0.05, 0.05, 0.05, 0.0)" \
+  --robot.tray_pos_base="(0.36, 0.22, 0.01)" \
+  --robot.tray_pos_delta="(0.05, 0.03, 0.00)" \
+  --robot.tray_size_base="(0.09, 0.07, 0.01)" \
+  --robot.tray_size_delta="(0.01, 0.01, 0.00)" \
+  --robot.tray_color_base="(0.9, 0.2, 0.2, 1.0)" \
+  --robot.tray_color_delta="(0.1, 0.05, 0.05, 0.0)" \
+  --robot.camera_pos_base="(0.25, -0.35, 0.55)" \
+  --robot.camera_pos_delta="(0.00, 0.00, 0.00)" \
+  --robot.camera_euler_base="(0.70, 3.14159, 0.0)" \
+  --robot.camera_euler_delta="(0.00, 0.00, 0.00)" \
+  --teleop.type=keyboard
+```
+
