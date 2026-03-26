@@ -104,6 +104,42 @@ class So101MujocoRobot(Robot):
         if hasattr(self, 'sim'):
             self.sim.is_running = False
 
+        if self._sim_thread is not None and self._sim_thread.is_alive():
+            self._sim_thread.join()
+
+    def restart_simulation(self) -> None:
+        """Fully resets the MuJoCo environment, randomizes the scene, and opens a new window."""
+        print("Shutting down old simulation...")
+        self.disconnect()
+        
+        # Clear old observations so connect() waits properly for the new window to render
+        self._latest_obs.clear()
+        
+        print("Building new randomized environment...")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        resolved_xml_path = os.path.join(current_dir, self.config.xml_path)
+        
+        # Re-instantiate the simulation to reset time, MjData, and trigger scene randomization
+        self.sim = SO101Simulation(
+            xml_path=resolved_xml_path,
+            camera_name=self.config.camera_name,
+            render_fps=self.config.render_fps,
+            enable_rgb=self.config.enable_rgb,
+            enable_depth=self.config.enable_depth,
+            show_cv2=self.config.show_cv2,
+            enable_rerun=self.config.enable_rerun,
+            rerun_log_meshes=self.config.rerun_log_meshes,
+            rerun_log_tf=self.config.rerun_log_tf,
+            rerun_depth_mode=self.config.rerun_depth_mode,
+            rerun_log_rgb=self.config.rerun_log_rgb,
+            rgb_callback=self._on_rgb_frame,
+            joint_callback=self._on_joint_data,
+            control_callback=self._on_control_request,
+            scene_config=self.config
+        )
+        
+        self.connect()
+
     def get_observation(self) -> dict[str, Any]:
         if not self.is_connected:
             raise ConnectionError(f"{self} is not connected.")

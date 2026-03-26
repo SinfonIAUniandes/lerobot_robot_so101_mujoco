@@ -343,6 +343,10 @@ class SO101Simulation:
                 real_elapsed_time = time.time() - sim_start_time
 
                 while self.data.time < real_elapsed_time:
+                    
+                    if not self.is_running:
+                        break
+
                     if self.control_callback:
                         commands = self.control_callback(self.data.time)
                         if isinstance(commands, dict):
@@ -369,3 +373,5 @@ class SO101Simulation:
                 viewer.close()
             if self.show_cv2:
                 cv2.destroyAllWindows()
+            if hasattr(self, 'renderer') and self.renderer is not None:
+                self.renderer.close()
