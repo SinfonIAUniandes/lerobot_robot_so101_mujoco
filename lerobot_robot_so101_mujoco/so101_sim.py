@@ -36,12 +36,12 @@ class SO101Simulation:
         self.model = mujoco.MjModel.from_xml_path(xml_path)
         self.scene_config = scene_config
 
+        # 1. CREATE DATA FIRST so we can modify the dynamic qpos state
+        self.data = mujoco.MjData(self.model)
+
         # Always run setup so we use the config's base values
         if self.scene_config:
             self._setup_scene()
-            
-        
-        self.data = mujoco.MjData(self.model)
 
         self.camera_name = camera_name
         self.render_fps = render_fps
@@ -60,20 +60,27 @@ class SO101Simulation:
 
         valid_modes = ["none", "depth", "pointcloud"]
         if rerun_depth_mode not in valid_modes:
-            print(f"Warning: Invalid rerun_depth_mode '{rerun_depth_mode}'. Defaulting to 'none'.")
+            print(
+                f"Warning: Invalid rerun_depth_mode '{rerun_depth_mode}'. Defaulting to 'none'.")
             self.rerun_depth_mode = "none"
         else:
             self.rerun_depth_mode = rerun_depth_mode
 
-        self.enable_rgb = enable_rgb or show_cv2 or (self.rerun_depth_mode == "pointcloud") or (self.enable_rerun and self.rerun_log_rgb)
-        self.enable_depth = enable_depth or show_cv2 or (self.rerun_depth_mode in ["depth", "pointcloud"])
+        self.enable_rgb = enable_rgb or show_cv2 or (
+            self.rerun_depth_mode == "pointcloud") or (self.enable_rerun and self.rerun_log_rgb)
+        self.enable_depth = enable_depth or show_cv2 or (
+            self.rerun_depth_mode in ["depth", "pointcloud"])
 
         if enable_rerun and not RERUN_AVAILABLE:
-            print("Warning: Rerun is enabled but not installed. Run 'pip install rerun-sdk'.")
+            print(
+                "Warning: Rerun is enabled but not installed. Run 'pip install rerun-sdk'.")
 
-        self.cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "d435i")
-        self.mount_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "air_camera_mount")
-        self.base_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "base")
+        self.cam_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "d435i")
+        self.mount_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "air_camera_mount")
+        self.base_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "base")
 
         self._snap_camera()
         mujoco.mj_forward(self.model, self.data)
@@ -106,32 +113,58 @@ class SO101Simulation:
             return base_arr + noise
 
         # 1. Setup Box
-        box_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "box")
-        box_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "box_geom")
+        box_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "box")
+        box_geom_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "box_geom")
+
         if box_body_id != -1:
-            self.model.body_pos[box_body_id] = get_val(self.scene_config.box_pos_base, self.scene_config.box_pos_delta)
+            new_pos = get_val(self.scene_config.box_pos_base,
+                              self.scene_config.box_pos_delta)
+
+            # Check if the body has a joint (like our freejoint)
+            jnt_adr = self.model.body_jntadr[box_body_id]
+            if jnt_adr != -1:
+                # Modifying qpos moves the free joint. Updating qpos0 ensures resets work.
+                qpos_adr = self.model.jnt_qposadr[jnt_adr]
+                self.data.qpos[qpos_adr: qpos_adr + 3] = new_pos
+                self.model.qpos0[qpos_adr: qpos_adr + 3] = new_pos
+            else:
+                # Fallback for static bodies (no freejoint)
+                self.model.body_pos[box_body_id] = new_pos
+
         if box_geom_id != -1:
-            self.model.geom_size[box_geom_id] = get_val(self.scene_config.box_size_base, self.scene_config.box_size_delta)
+            self.model.geom_size[box_geom_id] = get_val(
+                self.scene_config.box_size_base, self.scene_config.box_size_delta)
             # Clip colors to ensure they stay between 0.0 and 1.0
-            self.model.geom_rgba[box_geom_id] = np.clip(get_val(self.scene_config.box_color_base, self.scene_config.box_color_delta), 0.0, 1.0)
+            self.model.geom_rgba[box_geom_id] = np.clip(get_val(
+                self.scene_config.box_color_base, self.scene_config.box_color_delta), 0.0, 1.0)
 
         # 2. Setup Tray
-        tray_body_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "tray")
-        tray_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "tray_geom")
+        tray_body_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "tray")
+        tray_geom_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_GEOM, "tray_geom")
         if tray_body_id != -1:
-            self.model.body_pos[tray_body_id] = get_val(self.scene_config.tray_pos_base, self.scene_config.tray_pos_delta)
+            self.model.body_pos[tray_body_id] = get_val(
+                self.scene_config.tray_pos_base, self.scene_config.tray_pos_delta)
         if tray_geom_id != -1:
-            self.model.geom_size[tray_geom_id] = get_val(self.scene_config.tray_size_base, self.scene_config.tray_size_delta)
-            self.model.geom_rgba[tray_geom_id] = np.clip(get_val(self.scene_config.tray_color_base, self.scene_config.tray_color_delta), 0.0, 1.0)
+            self.model.geom_size[tray_geom_id] = get_val(
+                self.scene_config.tray_size_base, self.scene_config.tray_size_delta)
+            self.model.geom_rgba[tray_geom_id] = np.clip(get_val(
+                self.scene_config.tray_color_base, self.scene_config.tray_color_delta), 0.0, 1.0)
 
         # 3. Setup Camera
-        cam_mount_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "air_camera_mount")
+        cam_mount_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, "air_camera_mount")
         if cam_mount_id != -1:
-            self.model.body_pos[cam_mount_id] = get_val(self.scene_config.camera_pos_base, self.scene_config.camera_pos_delta)
-            
+            self.model.body_pos[cam_mount_id] = get_val(
+                self.scene_config.camera_pos_base, self.scene_config.camera_pos_delta)
+
             # Apply orientation via euler (convert to quat and set body_quat)
             if hasattr(self.scene_config, "camera_euler_base") and hasattr(self.scene_config, "camera_euler_delta"):
-                euler_target = get_val(self.scene_config.camera_euler_base, self.scene_config.camera_euler_delta)
+                euler_target = get_val(
+                    self.scene_config.camera_euler_base, self.scene_config.camera_euler_delta)
                 quat_target = np.zeros(4)
                 mujoco.mju_euler2Quat(quat_target, euler_target, "xyz")
                 self.model.body_quat[cam_mount_id] = quat_target
@@ -158,7 +191,8 @@ class SO101Simulation:
     def _log_static_meshes(self):
         for geom_id in range(self.model.ngeom):
             body_id = self.model.geom_bodyid[geom_id]
-            body_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+            body_name = mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_BODY, body_id)
 
             if not body_name or body_name in {"box"}:
                 continue
@@ -166,14 +200,17 @@ class SO101Simulation:
             if (self.model.geom_group[geom_id] > 2 or self.model.geom_type[geom_id] != mujoco.mjtGeom.mjGEOM_MESH):
                 continue
 
-            geom_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or f"geom_{geom_id}"
+            geom_name = mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or f"geom_{geom_id}"
             entity_path = f"world/tf/{body_name}/{geom_name}"
 
             local_pos = self.model.geom_pos[geom_id]
             local_quat_wxyz = self.model.geom_quat[geom_id]
-            local_quat_xyzw = [local_quat_wxyz[1], local_quat_wxyz[2], local_quat_wxyz[3], local_quat_wxyz[0]]
+            local_quat_xyzw = [
+                local_quat_wxyz[1], local_quat_wxyz[2], local_quat_wxyz[3], local_quat_wxyz[0]]
 
-            rr.log(entity_path, rr.Transform3D(translation=local_pos, rotation=rr.Quaternion(xyzw=local_quat_xyzw)), static=True)
+            rr.log(entity_path, rr.Transform3D(translation=local_pos,
+                   rotation=rr.Quaternion(xyzw=local_quat_xyzw)), static=True)
 
             mesh_id = self.model.geom_dataid[geom_id]
             if mesh_id == -1:
@@ -193,45 +230,56 @@ class SO101Simulation:
             else:
                 rgba = self.model.geom_rgba[geom_id]
 
-            color = (np.array([rgba[0], rgba[1], rgba[2], rgba[3]]) * 255).astype(np.uint8)
+            color = (np.array([rgba[0], rgba[1], rgba[2],
+                     rgba[3]]) * 255).astype(np.uint8)
             vertex_colors = np.tile(color, (vert_num, 1))
 
-            rr.log(f"{entity_path}/mesh", rr.Mesh3D(vertex_positions=vertices, triangle_indices=faces, vertex_colors=vertex_colors), static=True)
+            rr.log(f"{entity_path}/mesh", rr.Mesh3D(vertex_positions=vertices,
+                   triangle_indices=faces, vertex_colors=vertex_colors), static=True)
 
     def _update_rerun_dynamic(self, rgb_image, raw_depth):
         IGNORED_BODIES = {"box"}
 
         for i in range(1, self.model.nbody):
-            body_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, i)
+            body_name = mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_BODY, i)
             if not body_name or body_name in IGNORED_BODIES:
                 continue
 
             pos = self.data.xpos[i]
             quat_wxyz = self.data.xquat[i]
-            quat_xyzw = [quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]]
+            quat_xyzw = [quat_wxyz[1], quat_wxyz[2],
+                         quat_wxyz[3], quat_wxyz[0]]
 
             if self.rerun_log_tf:
-                rr.log(f"world/tf/{body_name}", rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=quat_xyzw), axis_length=0.05))
+                rr.log(f"world/tf/{body_name}", rr.Transform3D(translation=pos,
+                       rotation=rr.Quaternion(xyzw=quat_xyzw), axis_length=0.05))
                 parent_id = self.model.body_parentid[i]
                 if parent_id != 0:
-                    parent_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, parent_id)
+                    parent_name = mujoco.mj_id2name(
+                        self.model, mujoco.mjtObj.mjOBJ_BODY, parent_id)
                     if parent_name and parent_name not in IGNORED_BODIES:
                         parent_pos = self.data.xpos[parent_id]
-                        rr.log(f"world/tf_skeleton/{parent_name}_to_{body_name}", rr.Arrows3D(origins=[parent_pos], vectors=[pos - parent_pos], colors=[[150, 150, 150]], radii=0.002))
+                        rr.log(f"world/tf_skeleton/{parent_name}_to_{body_name}", rr.Arrows3D(origins=[
+                               parent_pos], vectors=[pos - parent_pos], colors=[[150, 150, 150]], radii=0.002))
             else:
-                rr.log(f"world/tf/{body_name}", rr.Transform3D(translation=pos, rotation=rr.Quaternion(xyzw=quat_xyzw)))
+                rr.log(f"world/tf/{body_name}", rr.Transform3D(translation=pos,
+                       rotation=rr.Quaternion(xyzw=quat_xyzw)))
 
         if self.rerun_log_tf and self.base_id != -1 and self.cam_id != -1:
             base_pos = self.data.xpos[self.base_id]
             cam_body_pos = self.data.xpos[self.cam_id]
-            rr.log("world/visuals/base_to_camera", rr.Arrows3D(origins=[base_pos], vectors=[cam_body_pos - base_pos], colors=[[255, 0, 0]], radii=0.005))
-            
+            rr.log("world/visuals/base_to_camera", rr.Arrows3D(origins=[base_pos], vectors=[
+                   cam_body_pos - base_pos], colors=[[255, 0, 0]], radii=0.005))
+
         if self.rerun_log_rgb and self.enable_rgb and rgb_image is not None:
-            rr.log(f"world/{self.camera_name}/optical/rgb", rr.Image(rgb_image))
+            rr.log(f"world/{self.camera_name}/optical/rgb",
+                   rr.Image(rgb_image))
 
         if raw_depth is not None:
             if self.rerun_depth_mode == "depth":
-                rr.log(f"world/{self.camera_name}/optical/depth", rr.DepthImage(raw_depth, meter=1.0))
+                rr.log(f"world/{self.camera_name}/optical/depth",
+                       rr.DepthImage(raw_depth, meter=1.0))
 
             elif self.rerun_depth_mode == "pointcloud" and rgb_image is not None:
                 z = raw_depth.flatten()
@@ -247,17 +295,21 @@ class SO101Simulation:
                 y_valid = (v_valid - self.cy) * z_valid / self.fy
 
                 positions = np.vstack((x_valid, -y_valid, -z_valid)).T
-                rr.log(f"world/{self.camera_name}/pointcloud", rr.Points3D(positions, colors=colors_valid))
+                rr.log(f"world/{self.camera_name}/pointcloud",
+                       rr.Points3D(positions, colors=colors_valid))
 
-        actual_cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, self.camera_name)
+        actual_cam_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_CAMERA, self.camera_name)
         if actual_cam_id != -1:
             cam_pos = self.data.cam_xpos[actual_cam_id]
             cam_mat = self.data.cam_xmat[actual_cam_id]
             cam_quat_wxyz = np.zeros(4)
             mujoco.mju_mat2Quat(cam_quat_wxyz, cam_mat)
-            cam_quat_xyzw = [cam_quat_wxyz[1], cam_quat_wxyz[2], cam_quat_wxyz[3], cam_quat_wxyz[0]]
+            cam_quat_xyzw = [cam_quat_wxyz[1], cam_quat_wxyz[2],
+                             cam_quat_wxyz[3], cam_quat_wxyz[0]]
 
-            rr.log(f"world/{self.camera_name}", rr.Transform3D(translation=cam_pos, rotation=rr.Quaternion(xyzw=cam_quat_xyzw)))
+            rr.log(f"world/{self.camera_name}", rr.Transform3D(
+                translation=cam_pos, rotation=rr.Quaternion(xyzw=cam_quat_xyzw)))
 
     def _process_joints(self):
         if self.joint_callback is None:
@@ -265,7 +317,8 @@ class SO101Simulation:
 
         joint_data = {}
         for i in range(self.model.njnt):
-            jnt_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, i)
+            jnt_name = mujoco.mj_id2name(
+                self.model, mujoco.mjtObj.mjOBJ_JOINT, i)
             if jnt_name:
                 qpos_idx = self.model.jnt_qposadr[i]
                 joint_data[jnt_name] = self.data.qpos[qpos_idx]
@@ -277,14 +330,16 @@ class SO101Simulation:
             return
 
         for name, value in commands.items():
-            act_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
+            act_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, name)
             if act_id != -1:
                 self.data.ctrl[act_id] = value
 
     def _process_cameras(self):
         if self.renderer is None and (self.enable_rgb or self.enable_depth):
-            self.renderer = mujoco.Renderer(self.model, height=self.height, width=self.width)
-        
+            self.renderer = mujoco.Renderer(
+                self.model, height=self.height, width=self.width)
+
         rgb_image = None
         bgr_image = None
         raw_depth = None
@@ -307,12 +362,15 @@ class SO101Simulation:
             if self.show_cv2 or self.depth_callback:
                 max_depth = 3.0
                 depth_visual = raw_depth.copy()
-                bg_mask = (depth_visual == 0.0) | np.isinf(depth_visual) | np.isnan(depth_visual)
+                bg_mask = (depth_visual == 0.0) | np.isinf(
+                    depth_visual) | np.isnan(depth_visual)
                 depth_visual[bg_mask] = max_depth
 
-                depth_normalized = np.clip(depth_visual, 0, max_depth) / max_depth
+                depth_normalized = np.clip(
+                    depth_visual, 0, max_depth) / max_depth
                 depth_8bit = (depth_normalized * 255).astype(np.uint8)
-                depth_colormap = cv2.applyColorMap(255 - depth_8bit, cv2.COLORMAP_JET)
+                depth_colormap = cv2.applyColorMap(
+                    255 - depth_8bit, cv2.COLORMAP_JET)
 
                 if self.depth_callback:
                     self.depth_callback(raw_depth, depth_colormap)
@@ -331,19 +389,20 @@ class SO101Simulation:
         sim_start_time = time.time()
         render_interval = 1.0 / self.render_fps
         last_render_time = time.time()
-        self.is_running = True 
+        self.is_running = True
 
-        viewer = mujoco.viewer.launch_passive(self.model, self.data) if not headless else None
+        viewer = mujoco.viewer.launch_passive(
+            self.model, self.data) if not headless else None
 
         try:
             while self.is_running:
                 if viewer and not viewer.is_running():
                     break
-                
+
                 real_elapsed_time = time.time() - sim_start_time
 
                 while self.data.time < real_elapsed_time:
-                    
+
                     if not self.is_running:
                         break
 
@@ -351,7 +410,7 @@ class SO101Simulation:
                         commands = self.control_callback(self.data.time)
                         if isinstance(commands, dict):
                             self.apply_commands(commands)
-                    
+
                     mujoco.mj_step(self.model, self.data)
                     self._snap_camera()
                     mujoco.mj_forward(self.model, self.data)
@@ -359,14 +418,14 @@ class SO101Simulation:
                 if viewer:
                     viewer.sync()
                 else:
-                    time.sleep(0.001) 
+                    time.sleep(0.001)
 
                 current_time = time.time()
                 if current_time - last_render_time >= render_interval:
                     if self.enable_rgb or self.enable_depth:
                         self._process_cameras()
 
-                    self._process_joints() 
+                    self._process_joints()
                     last_render_time = current_time
         finally:
             if viewer:
