@@ -11,7 +11,9 @@ class So101MujocoRobotConfig(RobotConfig):
     
     # Rendering toggles
     enable_rgb: bool = True
-    enable_depth: bool = False
+    enable_depth: bool = True
+    enable_wrist_cam: bool = True
+    wrist_camera_name: str = "wrist_cam"
     show_cv2: bool = False
     
     # Rerun.io telemetry integration
