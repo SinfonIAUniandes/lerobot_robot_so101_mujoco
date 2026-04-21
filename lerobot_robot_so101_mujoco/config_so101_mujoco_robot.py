@@ -9,6 +9,9 @@ class So101MujocoRobotConfig(RobotConfig):
     camera_name: str = "realsense_d435i"
     render_fps: int = 30
     
+    # State tracking toggles
+    enable_ee_pose: bool = True
+    
     # Rendering toggles
     enable_rgb: bool = True
     enable_depth: bool = True

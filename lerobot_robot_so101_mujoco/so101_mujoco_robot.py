@@ -101,10 +101,14 @@ class So101MujocoRobot(Robot):
             "shoulder_pan.pos": float, "shoulder_lift.pos": float,
             "elbow_flex.pos": float, "wrist_flex.pos": float,
             "wrist_roll.pos": float, "gripper.pos": float,
-            "ee_pos_x": float, "ee_pos_y": float, "ee_pos_z": float,
-            "ee_quat_x": float, "ee_quat_y": float, "ee_quat_z": float, "ee_quat_w": float,
             "realsense": (480, 640, 3),
         }
+        
+        if getattr(self.config, 'enable_ee_pose', True):
+            obs.update({
+                "ee_pos_x": float, "ee_pos_y": float, "ee_pos_z": float,
+                "ee_quat_x": float, "ee_quat_y": float, "ee_quat_z": float, "ee_quat_w": float,
+            })
 
         # Register depth feature
         if self.config.enable_depth:
@@ -144,11 +148,13 @@ class So101MujocoRobot(Robot):
         print("Waiting for MuJoCo to render the first frame...")
         
         # Build the list of required observation keys dynamically
-        required_keys = [
-            "realsense", "gripper.pos", 
-            "ee_pos_x", "ee_pos_y", "ee_pos_z",
-            "ee_quat_x", "ee_quat_y", "ee_quat_z", "ee_quat_w"
-        ]
+        required_keys = ["realsense", "gripper.pos"]
+
+        if getattr(self.config, 'enable_ee_pose', True):
+            required_keys.extend([
+                "ee_pos_x", "ee_pos_y", "ee_pos_z",
+                "ee_quat_x", "ee_quat_y", "ee_quat_z", "ee_quat_w"
+            ])
 
         if self.config.enable_depth:
             required_keys.append("realsense_depth")

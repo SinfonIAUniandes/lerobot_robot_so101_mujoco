@@ -53,10 +53,12 @@ class SO101Simulation:
         self.wrist_callback = wrist_callback
         self.joint_callback = joint_callback
         self.control_callback = control_callback
-        
+
         # Fetch wrist cam settings from config
-        self.enable_wrist_cam = getattr(self.scene_config, 'enable_wrist_cam', False)
-        self.wrist_camera_name = getattr(self.scene_config, 'wrist_camera_name', 'wrist_cam')
+        self.enable_wrist_cam = getattr(
+            self.scene_config, 'enable_wrist_cam', False)
+        self.wrist_camera_name = getattr(
+            self.scene_config, 'wrist_camera_name', 'wrist_cam')
 
         # Rerun Configuration
         self.enable_rerun = enable_rerun and RERUN_AVAILABLE
@@ -330,37 +332,37 @@ class SO101Simulation:
                 qpos_idx = self.model.jnt_qposadr[i]
                 joint_data[jnt_name] = self.data.qpos[qpos_idx]
 
-        ee_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "gripperframe")
-        base_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "baseframe")
+        if getattr(self.scene_config, 'enable_ee_pose', True):
+            ee_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_SITE, "gripperframe")
+            base_id = mujoco.mj_name2id(
+                self.model, mujoco.mjtObj.mjOBJ_SITE, "baseframe")
 
-        if ee_id != -1 and base_id != -1:
-            # 1. Extract World Space Data (and reshape 1D matrices to 3x3)
-            pos_ee_world = self.data.site_xpos[ee_id]
-            mat_ee_world = self.data.site_xmat[ee_id].reshape(3, 3)
-            
-            pos_base_world = self.data.site_xpos[base_id]
-            mat_base_world = self.data.site_xmat[base_id].reshape(3, 3)
+            if ee_id != -1 and base_id != -1:
+                # 1. Extract World Space Data (and reshape 1D matrices to 3x3)
+                pos_ee_world = self.data.site_xpos[ee_id]
+                mat_ee_world = self.data.site_xmat[ee_id].reshape(3, 3)
 
-            # 2. Compute Relative Position (Base-centric coordinate system)
-            # Math: Multiply transposed base rotation matrix by positional difference
-            pos_rel = mat_base_world.T @ (pos_ee_world - pos_base_world)
+                pos_base_world = self.data.site_xpos[base_id]
+                mat_base_world = self.data.site_xmat[base_id].reshape(3, 3)
 
-            # 3. Compute Relative Rotation (Matrix to Quaternion)
-            mat_rel = mat_base_world.T @ mat_ee_world
-            quat_rel_wxyz = np.zeros(4)
-            # MuJoCo natively outputs (w, x, y, z) quaternions
-            mujoco.mju_mat2Quat(quat_rel_wxyz, mat_rel.flatten())
+                # 2. Compute Relative Position (Base-centric coordinate system)
+                pos_rel = mat_base_world.T @ (pos_ee_world - pos_base_world)
 
-            quat_rel_xyzw = np.array([
-                quat_rel_wxyz[1],  # x
-                quat_rel_wxyz[2],  # y
-                quat_rel_wxyz[3],  # z
-                quat_rel_wxyz[0]   # w
-            ], dtype=np.float32)
+                # 3. Compute Relative Rotation (Matrix to Quaternion)
+                mat_rel = mat_base_world.T @ mat_ee_world
+                quat_rel_wxyz = np.zeros(4)
+                mujoco.mju_mat2Quat(quat_rel_wxyz, mat_rel.flatten())
 
-            # Cast to float32 for deep learning model compatibility
-            joint_data["ee_pos"] = pos_rel.astype(np.float32)
-            joint_data["ee_quat"] = quat_rel_xyzw
+                quat_rel_xyzw = np.array([
+                    quat_rel_wxyz[1],  # x
+                    quat_rel_wxyz[2],  # y
+                    quat_rel_wxyz[3],  # z
+                    quat_rel_wxyz[0]   # w
+                ], dtype=np.float32)
+
+                joint_data["ee_pos"] = pos_rel.astype(np.float32)
+                joint_data["ee_quat"] = quat_rel_xyzw
 
         self.joint_callback(joint_data)
 
@@ -381,7 +383,8 @@ class SO101Simulation:
 
         # Initialize secondary renderer for wrist cam
         if self.enable_wrist_cam and self.wrist_renderer is None:
-            self.wrist_renderer = mujoco.Renderer(self.model, height=self.height, width=self.width)
+            self.wrist_renderer = mujoco.Renderer(
+                self.model, height=self.height, width=self.width)
 
         rgb_image = None
         bgr_image = None
@@ -419,7 +422,8 @@ class SO101Simulation:
                     self.depth_callback(raw_depth, depth_colormap)
 
         if self.enable_wrist_cam:
-            self.wrist_renderer.update_scene(self.data, camera=self.wrist_camera_name)
+            self.wrist_renderer.update_scene(
+                self.data, camera=self.wrist_camera_name)
             wrist_rgb = self.wrist_renderer.render()
 
             if self.wrist_callback:
@@ -487,4 +491,4 @@ class SO101Simulation:
             if hasattr(self, 'renderer') and self.renderer is not None:
                 self.renderer.close()
             if hasattr(self, 'wrist_renderer') and self.wrist_renderer is not None:
-                self.wrist_renderer.close() # Clean up the second renderer
+                self.wrist_renderer.close()  # Clean up the second renderer
