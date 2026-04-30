@@ -1,4 +1,6 @@
 # SO101 MuJoCo Simulation for LeRobot
+![arm_gif](https://github.com/user-attachments/assets/b2bf4ec5-41b2-4842-ad56-2086041771c4)
+
 
 A custom hardware plugin for the [LeRobot](https://github.com/huggingface/lerobot) framework that wraps a MuJoCo simulation of the SO101 robotic arm. 
 
