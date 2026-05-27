@@ -8,6 +8,7 @@ class So101MujocoRobotConfig(RobotConfig):
     xml_path: str = "./robotstudio_so101/so101_camera_mount.xml"
     camera_name: str = "realsense_d435i"
     render_fps: int = 30
+    headless: bool = False
     
     # State tracking toggles
     enable_ee_pose: bool = True
@@ -36,6 +37,14 @@ class So101MujocoRobotConfig(RobotConfig):
     box_size_delta: tuple = (0.005, 0.005, 0.005)
     box_color_base: tuple = (0.1, 0.1, 0.1, 1.0) # Base black (r,g,b,alpha)
     box_color_delta: tuple = (0.1, 0.1, 0.1, 0.0) # Can drift slightly lighter
+    
+    # Second Box (Blue-ish)
+    box2_pos_base: tuple = (0.40, 0.05, 0.03)
+    box2_pos_delta: tuple = (0.05, 0.10, 0.0)
+    box2_size_base: tuple = (0.02, 0.02, 0.03)
+    box2_size_delta: tuple = (0.005, 0.005, 0.005)
+    box2_color_base: tuple = (0.1, 0.1, 0.8, 1.0) # Base blue
+    box2_color_delta: tuple = (0.1, 0.1, 0.2, 0.0)
     
     # Red Tray
     tray_pos_base: tuple = (0.35, 0.2, 0.01)
